@@ -11,6 +11,7 @@ import {
   DEFAULT_DOCUMENT_ID,
   type Comment,
   type Revision,
+  type Review,
   type UserPresence,
 } from '@text-editor/shared'
 import {
@@ -21,6 +22,7 @@ import {
   Clock3,
   Cloud,
   Eraser,
+  Highlighter,
   Italic,
   List,
   ListOrdered,
@@ -36,11 +38,15 @@ import {
 } from 'lucide-react'
 import { FontSize } from './extensions/FontSize'
 import { CommentMark } from './extensions/CommentMark'
+import { ReviewMark } from './extensions/ReviewMark'
 import {
+  completeReview as completeReviewRequest,
   getComments,
   getRevisions,
+  getReviews,
   postComment,
   postRevision,
+  postReview,
   resolveComment as resolveCommentRequest,
 } from './api'
 
@@ -116,7 +122,9 @@ function IconButton({
 function App() {
   const [savedAt, setSavedAt] = useState<Date | null>(null)
   const [isSaved, setIsSaved] = useState(true)
-  const [rightPanel, setRightPanel] = useState<'comments' | 'history' | null>('comments')
+  const [rightPanel, setRightPanel] = useState<'comments' | 'review' | 'history' | null>(
+    'comments',
+  )
   const [documentTitle, setDocumentTitle] = useState('Remote work — first draft')
   const [, forceToolbarUpdate] = useState(0)
   const [connectionStatus, setConnectionStatus] = useState('connecting')
@@ -134,6 +142,11 @@ function App() {
   const [revisionsLoading, setRevisionsLoading] = useState(false)
   const [revisionSaving, setRevisionSaving] = useState(false)
   const [revisionError, setRevisionError] = useState('')
+  const [reviews, setReviews] = useState<Review[]>([])
+  const [reviewsLoading, setReviewsLoading] = useState(false)
+  const [reviewSubmitting, setReviewSubmitting] = useState(false)
+  const [reviewError, setReviewError] = useState('')
+  const [activeReviewId, setActiveReviewId] = useState<number | null>(null)
 
   const currentUser = useMemo(() => getCurrentUser(), [])
 
@@ -144,6 +157,7 @@ function App() {
       Color,
       FontSize,
       CommentMark,
+      ReviewMark,
       Collaboration.configure({ document: collaborativeDocument }),
       CollaborationCaret.configure({
         provider: collaborationProvider,
@@ -158,9 +172,16 @@ function App() {
       handleClick: (_view, _position, event) => {
         const target = event.target as HTMLElement
         const highlight = target.closest<HTMLElement>('[data-comment-id]')
-        if (!highlight) return false
-        setActiveCommentId(Number(highlight.dataset.commentId))
-        setRightPanel('comments')
+        if (highlight) {
+          setActiveCommentId(Number(highlight.dataset.commentId))
+          setRightPanel('comments')
+          return false
+        }
+        const reviewHighlight = target.closest<HTMLElement>('[data-review-id]')
+        if (reviewHighlight) {
+          setActiveReviewId(Number(reviewHighlight.dataset.reviewId))
+          setRightPanel('review')
+        }
         return false
       },
     },
@@ -270,6 +291,30 @@ function App() {
     if (rightPanel === 'history') void refreshRevisions()
   }, [refreshRevisions, rightPanel])
 
+  const refreshReviews = useCallback(async () => {
+    setReviewsLoading(true)
+    try {
+      const nextReviews = await getReviews()
+      setReviews(nextReviews)
+      nextReviews
+        .filter((review) => review.status === 'completed')
+        .forEach((review) =>
+          editor?.commands.updateReviewMark(review.id, 'completed'),
+        )
+      setReviewError('')
+    } catch {
+      setReviewError('Reviews are temporarily unavailable.')
+    } finally {
+      setReviewsLoading(false)
+    }
+  }, [editor])
+
+  useEffect(() => {
+    void refreshReviews()
+    const interval = window.setInterval(() => void refreshReviews(), 4000)
+    return () => window.clearInterval(interval)
+  }, [refreshReviews])
+
   const addComment = async () => {
     const body = commentDraft.trim()
     if (!editor || !selectedRange || !selectedText.trim() || !body) return
@@ -374,6 +419,71 @@ function App() {
     }
     editor.commands.setContent(revision.contentHtml)
     saveDocument()
+  }
+
+  const startReview = async () => {
+    if (!editor || !selectedRange || !selectedText.trim()) return
+    setReviewSubmitting(true)
+    try {
+      const review = await postReview({
+        authorId: currentUser.id,
+        authorName: currentUser.name,
+        selectionFrom: selectedRange.from,
+        selectionTo: selectedRange.to,
+        quotedText: selectedText,
+      })
+      editor
+        .chain()
+        .focus()
+        .setTextSelection(selectedRange)
+        .setReviewMark(review.id)
+        .run()
+      setReviews((current) => [review, ...current])
+      setActiveReviewId(review.id)
+      setSelectedRange(null)
+      setSelectedText('')
+      setReviewError('')
+    } catch {
+      setReviewError('The review could not be started. Please try again.')
+    } finally {
+      setReviewSubmitting(false)
+    }
+  }
+
+  const findReviewRange = (reviewId: number) => {
+    if (!editor) return null
+    let from = Number.POSITIVE_INFINITY
+    let to = -1
+    editor.state.doc.descendants((node, position) => {
+      if (!node.isText) return
+      const hasReview = node.marks.some(
+        (mark) =>
+          mark.type.name === 'reviewMark' &&
+          Number(mark.attrs.reviewId) === reviewId,
+      )
+      if (!hasReview) return
+      from = Math.min(from, position)
+      to = Math.max(to, position + node.nodeSize)
+    })
+    return Number.isFinite(from) && to >= from ? { from, to } : null
+  }
+
+  const focusReview = (reviewId: number) => {
+    setActiveReviewId(reviewId)
+    const range = findReviewRange(reviewId)
+    if (range) editor?.chain().focus().setTextSelection(range).scrollIntoView().run()
+  }
+
+  const completeReview = async (reviewId: number) => {
+    try {
+      const completed = await completeReviewRequest(reviewId)
+      editor?.commands.updateReviewMark(reviewId, 'completed')
+      setReviews((current) =>
+        current.map((review) => (review.id === reviewId ? completed : review)),
+      )
+    } catch {
+      setReviewError('The review could not be completed. Please try again.')
+    }
   }
 
   const clearDocument = () => {
@@ -555,6 +665,13 @@ function App() {
           <MessageSquareText size={18} />
         </IconButton>
         <IconButton
+          label="Review"
+          active={rightPanel === 'review'}
+          onClick={() => setRightPanel(rightPanel === 'review' ? null : 'review')}
+        >
+          <Highlighter size={18} />
+        </IconButton>
+        <IconButton
           label="Version history"
           active={rightPanel === 'history'}
           onClick={() => setRightPanel(rightPanel === 'history' ? null : 'history')}
@@ -579,8 +696,20 @@ function App() {
           <aside className="side-panel">
             <div className="panel-heading">
               <div>
-                <p className="eyebrow">{rightPanel === 'comments' ? 'Discussion' : 'Archive'}</p>
-                <h2>{rightPanel === 'comments' ? 'Comments' : 'Version history'}</h2>
+                <p className="eyebrow">
+                  {rightPanel === 'comments'
+                    ? 'Discussion'
+                    : rightPanel === 'review'
+                      ? 'Quality'
+                      : 'Archive'}
+                </p>
+                <h2>
+                  {rightPanel === 'comments'
+                    ? 'Comments'
+                    : rightPanel === 'review'
+                      ? 'Review'
+                      : 'Version history'}
+                </h2>
               </div>
               <button type="button" onClick={() => setRightPanel(null)}>×</button>
             </div>
@@ -694,6 +823,76 @@ function App() {
                             </button>
                           )}
                         </div>
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : rightPanel === 'review' ? (
+              <div className="review-panel">
+                {selectedRange && selectedText ? (
+                  <div className="review-composer">
+                    <div className="selection-preview">“{selectedText}”</div>
+                    <p>Mark this passage for review. The highlight remains visible after completion.</p>
+                    <button
+                      className="primary-small-button"
+                      type="button"
+                      disabled={reviewSubmitting}
+                      onClick={() => void startReview()}
+                    >
+                      <Highlighter size={13} />
+                      {reviewSubmitting ? 'Starting…' : 'Start review'}
+                    </button>
+                  </div>
+                ) : (
+                  <p className="comment-hint">
+                    Select text in the document to start a review.
+                  </p>
+                )}
+
+                {reviewError && <p className="panel-error">{reviewError}</p>}
+
+                {reviewsLoading ? (
+                  <p className="panel-loading">Loading reviews…</p>
+                ) : reviews.length === 0 ? (
+                  <div className="empty-state comments-empty">
+                    <div className="empty-icon"><Highlighter size={22} /></div>
+                    <h3>No reviews yet</h3>
+                    <p>Reviewed passages and their completion state will appear here.</p>
+                  </div>
+                ) : (
+                  <div className="review-list">
+                    {reviews.map((review) => (
+                      <article
+                        className={`review-card ${
+                          activeReviewId === review.id ? 'active' : ''
+                        } ${review.status === 'completed' ? 'completed' : ''}`}
+                        key={review.id}
+                      >
+                        <button type="button" onClick={() => focusReview(review.id)}>
+                          <div className="review-card-heading">
+                            <span className={`review-status ${review.status}`}>
+                              {review.status === 'completed' ? 'Completed' : 'In review'}
+                            </span>
+                            <time>
+                              {new Date(`${review.createdAt}Z`).toLocaleString([], {
+                                month: 'short',
+                                day: 'numeric',
+                              })}
+                            </time>
+                          </div>
+                          <blockquote>“{review.quotedText}”</blockquote>
+                          <p>Started by {review.authorName}</p>
+                        </button>
+                        {review.status !== 'completed' && (
+                          <button
+                            className="complete-review-button"
+                            type="button"
+                            onClick={() => void completeReview(review.id)}
+                          >
+                            <CheckCircle2 size={13} /> Mark complete
+                          </button>
+                        )}
                       </article>
                     ))}
                   </div>

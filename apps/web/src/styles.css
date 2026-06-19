@@ -431,6 +431,19 @@ select:focus-visible {
   cursor: pointer;
 }
 
+.review-highlight {
+  padding: 1px 0;
+  border-radius: 2px;
+  background: rgba(126, 166, 206, .25);
+  box-shadow: inset 0 -2px #6f9aca;
+  cursor: pointer;
+}
+
+.review-highlight[data-review-status='completed'] {
+  background: rgba(113, 170, 130, .2);
+  box-shadow: inset 0 -2px #68a079;
+}
+
 .page-footer {
   display: flex;
   gap: 20px;
@@ -733,6 +746,122 @@ select:focus-visible {
 }
 
 .comment-card-actions button {
+  cursor: pointer;
+}
+
+.review-panel {
+  margin-top: 20px;
+}
+
+.review-composer {
+  margin-bottom: 15px;
+  padding: 12px;
+  border: 1px solid #cad8e5;
+  border-radius: 10px;
+  background: #f8fbfd;
+}
+
+.review-composer p {
+  margin: 0 0 11px;
+  color: #747b80;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.review-composer .primary-small-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #476f91;
+}
+
+.review-list {
+  display: grid;
+  gap: 10px;
+}
+
+.review-card {
+  padding: 11px;
+  border: 1px solid #dce3e8;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.review-card.active {
+  border-color: #6f9aca;
+  box-shadow: 0 0 0 2px rgba(111, 154, 202, .12);
+}
+
+.review-card.completed {
+  border-color: #d6e2d8;
+  background: #fafcf9;
+}
+
+.review-card > button:first-child {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  text-align: left;
+  background: transparent;
+  cursor: pointer;
+}
+
+.review-card-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.review-status {
+  padding: 3px 6px;
+  border-radius: 10px;
+  color: #466c8c;
+  background: #e7f0f7;
+  font-size: 9px;
+  font-weight: 600;
+}
+
+.review-status.completed {
+  color: #50755b;
+  background: #e6f1e8;
+}
+
+.review-card time {
+  color: #a0a49d;
+  font-size: 9px;
+}
+
+.review-card blockquote {
+  margin: 10px 0 7px;
+  padding-left: 8px;
+  overflow: hidden;
+  border-left: 2px solid #89aaca;
+  color: #656b6e;
+  font-family: 'Newsreader', serif;
+  font-size: 12px;
+  font-style: italic;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.review-card p {
+  margin: 0;
+  color: #92968f;
+  font-size: 9px;
+}
+
+.complete-review-button {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 10px 0 0 auto;
+  padding: 5px 7px;
+  border: 0;
+  border-radius: 6px;
+  color: #50755b;
+  background: #eaf3eb;
+  font-size: 9px;
+  font-weight: 600;
   cursor: pointer;
 }
 

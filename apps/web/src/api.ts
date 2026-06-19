@@ -3,7 +3,9 @@ import {
   type Comment,
   type CreateCommentInput,
   type CreateRevisionInput,
+  type CreateReviewInput,
   type Revision,
+  type Review,
 } from '@text-editor/shared'
 
 const apiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:3001'
@@ -44,5 +46,23 @@ export function postRevision(input: CreateRevisionInput): Promise<Revision> {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
+  })
+}
+
+export function getReviews(): Promise<Review[]> {
+  return request(`/api/documents/${DEFAULT_DOCUMENT_ID}/reviews`)
+}
+
+export function postReview(input: CreateReviewInput): Promise<Review> {
+  return request(`/api/documents/${DEFAULT_DOCUMENT_ID}/reviews`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+}
+
+export function completeReview(reviewId: number): Promise<Review> {
+  return request(`/api/reviews/${reviewId}/complete`, {
+    method: 'PATCH',
   })
 }
