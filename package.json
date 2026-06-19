@@ -1,0 +1,23 @@
+{
+  "name": "text-editor-app",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "concurrently -n web,server -c green,blue \"npm run dev -w @text-editor/web\" \"npm run dev -w @text-editor/server\"",
+    "dev:web": "npm run dev -w @text-editor/web",
+    "dev:server": "npm run dev -w @text-editor/server",
+    "build": "npm run build -w @text-editor/shared && npm run build -w @text-editor/server && npm run build -w @text-editor/web",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
