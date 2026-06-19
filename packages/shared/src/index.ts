@@ -27,6 +27,8 @@ export type CreateRevisionInput = Pick<
   'label' | 'contentHtml' | 'createdBy'
 >
 
+export type RenameRevisionInput = Pick<Revision, 'label'>
+
 export type Comment = {
   id: number
   documentId: string

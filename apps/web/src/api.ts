@@ -4,6 +4,7 @@ import {
   type CreateRevisionInput,
   type CreateReviewInput,
   type Revision,
+  type RenameRevisionInput,
   type Review,
 } from '@text-editor/shared'
 import { apiUrl, currentDocumentId } from './config'
@@ -42,6 +43,17 @@ export function getRevisions(): Promise<Revision[]> {
 export function postRevision(input: CreateRevisionInput): Promise<Revision> {
   return request(`/api/documents/${currentDocumentId}/revisions`, {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+}
+
+export function renameRevision(
+  revisionId: number,
+  input: RenameRevisionInput,
+): Promise<Revision> {
+  return request(`/api/revisions/${revisionId}`, {
+    method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   })

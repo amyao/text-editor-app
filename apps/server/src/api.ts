@@ -11,6 +11,7 @@ import {
   listDocuments,
   listReviews,
   listRevisions,
+  renameRevision,
   resolveComment,
   updateDocumentTitle,
 } from './database.js'
@@ -74,6 +75,21 @@ export function createApi() {
     response.status(201).json(revision)
   })
 
+  app.patch('/api/revisions/:revisionId', (request, response) => {
+    const revisionId = Number(request.params.revisionId)
+    const label = String(request.body.label ?? '').trim()
+    if (!Number.isInteger(revisionId) || revisionId < 1 || !label) {
+      response.status(400).json({ error: 'A valid revision id and name are required.' })
+      return
+    }
+    const revision = renameRevision(revisionId, label)
+    if (!revision) {
+      response.status(404).json({ error: 'Revision not found.' })
+      return
+    }
+    response.json(revision)
+  })
+
   app.get('/api/documents/:documentId/comments', (request, response) => {
     response.json(listComments(request.params.documentId))
   })
@@ -102,7 +118,12 @@ export function createApi() {
       response.status(400).json({ error: 'A valid comment id is required.' })
       return
     }
-    response.json(resolveComment(commentId))
+    const comment = resolveComment(commentId)
+    if (!comment) {
+      response.status(404).json({ error: 'Comment not found.' })
+      return
+    }
+    response.json(comment)
   })
 
   app.get('/api/documents/:documentId/reviews', (request, response) => {
@@ -128,7 +149,12 @@ export function createApi() {
       response.status(400).json({ error: 'A valid review id is required.' })
       return
     }
-    response.json(completeReview(reviewId))
+    const review = completeReview(reviewId)
+    if (!review) {
+      response.status(404).json({ error: 'Review not found.' })
+      return
+    }
+    response.json(review)
   })
 
   app.use((_request, response) => {

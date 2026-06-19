@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { EditorContent, useEditor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Collaboration from '@tiptap/extension-collaboration'
@@ -25,8 +25,9 @@ import {
   Italic,
   List,
   ListOrdered,
+  LogOut,
   MessageSquareText,
-  MoreHorizontal,
+  Pencil,
   Plus,
   Redo2,
   RotateCcw,
@@ -52,18 +53,11 @@ import {
   postComment,
   postRevision,
   postReview,
+  renameRevision as renameRevisionRequest,
   resolveComment as resolveCommentRequest,
 } from './api'
 
 const STORAGE_KEY = `draftly-document:${currentDocumentId}`
-const USER_KEY = 'draftly-user'
-const collaborativeDocument = new Y.Doc()
-const documentMetadata = collaborativeDocument.getMap<string>('metadata')
-const collaborationProvider = new HocuspocusProvider({
-  url: collaborationUrl,
-  name: currentDocumentId,
-  document: collaborativeDocument,
-})
 
 const initialContent = `
   <h1>The future of remote work</h1>
@@ -79,21 +73,6 @@ const initialContent = `
   </ul>
   <p>Great remote work feels less like a compromise and more like a deliberate advantage.</p>
 `
-
-const userPalette = ['#e07a5f', '#3d7a80', '#7a66a8', '#d49a46', '#557a54']
-
-function getCurrentUser(): UserPresence {
-  const storedUser = localStorage.getItem(USER_KEY)
-  if (storedUser) return JSON.parse(storedUser) as UserPresence
-
-  const user: UserPresence = {
-    id: crypto.randomUUID(),
-    name: `Guest ${Math.floor(Math.random() * 900 + 100)}`,
-    color: userPalette[Math.floor(Math.random() * userPalette.length)],
-  }
-  localStorage.setItem(USER_KEY, JSON.stringify(user))
-  return user
-}
 
 function IconButton({
   label,
@@ -113,7 +92,7 @@ function IconButton({
       className={`icon-button ${active ? 'active' : ''}`}
       type="button"
       aria-label={label}
-      title={label}
+      data-tooltip={label}
       disabled={disabled}
       onClick={onClick}
     >
@@ -122,7 +101,28 @@ function IconButton({
   )
 }
 
-function App() {
+function App({
+  currentUser,
+  onChangeUser,
+}: {
+  currentUser: UserPresence
+  onChangeUser: () => void
+}) {
+  const [collaboration] = useState(() => {
+    const document = new Y.Doc()
+    return {
+      document,
+      metadata: document.getMap<string>('metadata'),
+      provider: new HocuspocusProvider({
+        url: collaborationUrl,
+        name: currentDocumentId,
+        document,
+      }),
+    }
+  })
+  const collaborativeDocument = collaboration.document
+  const documentMetadata = collaboration.metadata
+  const collaborationProvider = collaboration.provider
   const [savedAt, setSavedAt] = useState<Date | null>(null)
   const [isSaved, setIsSaved] = useState(true)
   const [rightPanel, setRightPanel] = useState<'comments' | 'review' | 'history' | null>(
@@ -147,6 +147,8 @@ function App() {
   const [revisionsLoading, setRevisionsLoading] = useState(false)
   const [revisionSaving, setRevisionSaving] = useState(false)
   const [revisionError, setRevisionError] = useState('')
+  const [editingRevisionId, setEditingRevisionId] = useState<number | null>(null)
+  const [revisionNameDraft, setRevisionNameDraft] = useState('')
   const [reviews, setReviews] = useState<Review[]>([])
   const [reviewsLoading, setReviewsLoading] = useState(false)
   const [reviewSubmitting, setReviewSubmitting] = useState(false)
@@ -160,8 +162,6 @@ function App() {
     confirmLabel: string
     action: () => void
   } | null>(null)
-
-  const currentUser = useMemo(() => getCurrentUser(), [])
 
   const editor = useEditor({
     extensions: [
@@ -208,18 +208,44 @@ function App() {
       if (from !== to) {
         setSelectedRange({ from, to })
         setSelectedText(currentEditor.state.doc.textBetween(from, to, ' '))
+      } else {
+        setSelectedRange(null)
+        setSelectedText('')
       }
     },
   })
 
   useEffect(() => {
+    return () => {
+      collaborationProvider.destroy()
+      collaborativeDocument.destroy()
+    }
+  }, [collaborationProvider, collaborativeDocument])
+
+  useEffect(() => {
+    let initializationTimer: number | undefined
     const handleSynced = () => {
       setConnectionStatus('connected')
       if (!documentMetadata.get('title')) {
         documentMetadata.set('title', documentTitle)
       }
-      if (editor?.isEmpty) {
-        editor.commands.setContent(localStorage.getItem(STORAGE_KEY) ?? initialContent)
+      if (editor && !editor.isEmpty && !documentMetadata.get('initialized')) {
+        documentMetadata.set('initialized', 'true')
+      } else if (editor?.isEmpty && !documentMetadata.get('initialized')) {
+        initializationTimer = window.setTimeout(() => {
+          const clientIds = Array.from(
+            collaborationProvider.awareness?.getStates().keys() ?? [],
+          )
+          const leaderId = Math.min(...clientIds)
+          if (
+            collaborationProvider.awareness?.clientID === leaderId &&
+            editor.isEmpty &&
+            !documentMetadata.get('initialized')
+          ) {
+            documentMetadata.set('initialized', 'true')
+            editor.commands.setContent(localStorage.getItem(STORAGE_KEY) ?? initialContent)
+          }
+        }, 150)
       }
     }
     const handleStatus = ({ status }: { status: string }) => setConnectionStatus(status)
@@ -229,10 +255,11 @@ function App() {
     if (collaborationProvider.isSynced) handleSynced()
 
     return () => {
+      if (initializationTimer) window.clearTimeout(initializationTimer)
       collaborationProvider.off('synced', handleSynced)
       collaborationProvider.off('status', handleStatus)
     }
-  }, [documentTitle, editor])
+  }, [collaborationProvider, documentMetadata, documentTitle, editor])
 
   useEffect(() => {
     const handleMetadataChange = () => {
@@ -242,7 +269,7 @@ function App() {
     documentMetadata.observe(handleMetadataChange)
     handleMetadataChange()
     return () => documentMetadata.unobserve(handleMetadataChange)
-  }, [])
+  }, [documentMetadata])
 
   const changeDocumentTitle = (title: string) => {
     setDocumentTitle(title)
@@ -266,7 +293,7 @@ function App() {
     return () => {
       collaborationProvider.off('awarenessChange', updateOnlineUsers)
     }
-  }, [])
+  }, [collaborationProvider])
 
   const saveDocument = useCallback(() => {
     if (!editor) return
@@ -487,6 +514,24 @@ function App() {
     })
   }
 
+  const saveRevisionName = async (revision: Revision) => {
+    const label = revisionNameDraft.trim()
+    if (!label || label === revision.label) {
+      setEditingRevisionId(null)
+      return
+    }
+    try {
+      const renamed = await renameRevisionRequest(revision.id, { label })
+      setRevisions((current) =>
+        current.map((item) => (item.id === revision.id ? renamed : item)),
+      )
+      setEditingRevisionId(null)
+      setRevisionError('')
+    } catch {
+      setRevisionError('The version name could not be updated.')
+    }
+  }
+
   const startReview = async () => {
     if (!editor || !selectedRange || !selectedText.trim()) return
     setReviewSubmitting(true)
@@ -626,7 +671,9 @@ function App() {
                 ? 'Copy failed'
                 : 'Share'}
           </button>
-          <IconButton label="More options"><MoreHorizontal size={19} /></IconButton>
+          <IconButton label="Change display name" onClick={onChangeUser}>
+            <LogOut size={18} />
+          </IconButton>
         </div>
       </header>
 
@@ -709,7 +756,7 @@ function App() {
           >
             <Italic size={17} />
           </IconButton>
-          <label className="color-button" title="Text color">
+          <label className="color-button" data-tooltip="Text color">
             <span>A</span>
             <input
               type="color"
@@ -1018,7 +1065,34 @@ function App() {
                       <div className="history-item revision-item" key={revision.id}>
                         <div className="history-dot" />
                         <div className="revision-details">
-                          <strong>{revision.label}</strong>
+                          {editingRevisionId === revision.id ? (
+                            <input
+                              aria-label="Version name"
+                              autoFocus
+                              maxLength={80}
+                              value={revisionNameDraft}
+                              onChange={(event) => setRevisionNameDraft(event.target.value)}
+                              onBlur={(event) => {
+                                if (event.currentTarget.dataset.cancelled !== 'true') {
+                                  void saveRevisionName(revision)
+                                }
+                              }}
+                              onKeyDown={(event) => {
+                                if (event.key === 'Enter') {
+                                  event.currentTarget.blur()
+                                }
+                                if (event.key === 'Escape') {
+                                  event.currentTarget.dataset.cancelled = 'true'
+                                  setEditingRevisionId(null)
+                                }
+                              }}
+                              onFocus={(event) => {
+                                delete event.currentTarget.dataset.cancelled
+                              }}
+                            />
+                          ) : (
+                            <strong>{revision.label}</strong>
+                          )}
                           <span>
                             {new Date(`${revision.createdAt}Z`).toLocaleString([], {
                               month: 'short',
@@ -1032,8 +1106,19 @@ function App() {
                         </div>
                         <button
                           type="button"
-                          title={`Restore ${revision.label}`}
+                          aria-label={`Rename ${revision.label}`}
+                          data-tooltip="Rename version"
+                          onClick={() => {
+                            setEditingRevisionId(revision.id)
+                            setRevisionNameDraft(revision.label)
+                          }}
+                        >
+                          <Pencil size={13} />
+                        </button>
+                        <button
+                          type="button"
                           aria-label={`Restore ${revision.label}`}
+                          data-tooltip="Restore version"
                           onClick={() => restoreRevision(revision)}
                         >
                           <RotateCcw size={14} />

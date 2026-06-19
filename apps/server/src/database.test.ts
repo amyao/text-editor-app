@@ -20,6 +20,7 @@ const {
   listDocuments,
   listReviews,
   listRevisions,
+  renameRevision,
   resolveComment,
   storeDocumentUpdate,
   updateDocumentTitle,
@@ -59,7 +60,7 @@ test('creates, lists, and resolves anchored comments', () => {
 
   assert.equal(comment.resolved, false)
   assert.equal(listComments('document-1')[0].body, 'Please clarify this sentence.')
-  assert.equal(resolveComment(comment.id).resolved, true)
+  assert.equal(resolveComment(comment.id)?.resolved, true)
 })
 
 test('creates and completes review records', () => {
@@ -72,7 +73,7 @@ test('creates and completes review records', () => {
   })
 
   assert.equal(review.status, 'in_review')
-  assert.equal(completeReview(review.id).status, 'completed')
+  assert.equal(completeReview(review.id)?.status, 'completed')
   assert.ok(listReviews('document-1')[0].completedAt)
 })
 
@@ -86,4 +87,5 @@ test('stores revision HTML for later restoration', () => {
 
   assert.equal(revision.contentHtml, '<h1>Saved version</h1>')
   assert.equal(listRevisions('document-1')[0].label, 'Before rewrite')
+  assert.equal(renameRevision(revision.id, 'Approved draft')?.label, 'Approved draft')
 })

@@ -19,6 +19,7 @@ mkdirSync(dirname(databasePath), { recursive: true })
 
 export const database = new DatabaseSync(databasePath)
 
+database.exec('PRAGMA busy_timeout = 5000;')
 database.exec(`
   PRAGMA journal_mode = WAL;
   PRAGMA foreign_keys = ON;
@@ -141,10 +142,10 @@ export function createRevision(
        VALUES (?, ?, ?, ?, ?)`,
     )
     .run(documentId, label, document.ydoc, contentHtml, createdBy)
-  return getRevision(Number(result.lastInsertRowid))
+  return getRevision(Number(result.lastInsertRowid))!
 }
 
-function getRevision(id: number): Revision {
+function getRevision(id: number): Revision | null {
   const row = database.prepare('SELECT * FROM revisions WHERE id = ?').get(id) as {
     id: number
     document_id: string
@@ -152,7 +153,8 @@ function getRevision(id: number): Revision {
     content_html: string
     created_by: string
     created_at: string
-  }
+  } | undefined
+  if (!row) return null
   return {
     id: row.id,
     documentId: row.document_id,
@@ -167,7 +169,13 @@ export function listRevisions(documentId: string): Revision[] {
   const rows = database
     .prepare('SELECT id FROM revisions WHERE document_id = ? ORDER BY created_at DESC')
     .all(documentId) as { id: number }[]
-  return rows.map(({ id }) => getRevision(id))
+  return rows.map(({ id }) => getRevision(id)).filter((revision) => revision !== null)
+}
+
+export function renameRevision(id: number, label: string): Revision | null {
+  const result = database.prepare('UPDATE revisions SET label = ? WHERE id = ?').run(label, id)
+  if (result.changes === 0) return null
+  return getRevision(id)
 }
 
 function mapComment(row: Record<string, unknown>): Comment {
@@ -216,8 +224,9 @@ export function createComment(documentId: string, input: CreateCommentInput): Co
   return mapComment(row)
 }
 
-export function resolveComment(id: number): Comment {
-  database.prepare('UPDATE comments SET resolved = 1 WHERE id = ?').run(id)
+export function resolveComment(id: number): Comment | null {
+  const result = database.prepare('UPDATE comments SET resolved = 1 WHERE id = ?').run(id)
+  if (result.changes === 0) return null
   const row = database
     .prepare('SELECT * FROM comments WHERE id = ?')
     .get(id) as Record<string, unknown>
@@ -269,14 +278,15 @@ export function createReview(documentId: string, input: CreateReviewInput): Revi
   return mapReview(row)
 }
 
-export function completeReview(id: number): Review {
-  database
+export function completeReview(id: number): Review | null {
+  const result = database
     .prepare(
       `UPDATE reviews
        SET status = 'completed', completed_at = CURRENT_TIMESTAMP
        WHERE id = ?`,
     )
     .run(id)
+  if (result.changes === 0) return null
   const row = database
     .prepare('SELECT * FROM reviews WHERE id = ?')
     .get(id) as Record<string, unknown>

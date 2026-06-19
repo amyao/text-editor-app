@@ -63,6 +63,7 @@ export const ReviewMark = Mark.create({
                 Number(candidate.attrs.reviewId) === reviewId,
             )
             if (!mark) return
+            if (mark.attrs.status === status) return
 
             transaction.removeMark(position, position + node.nodeSize, mark)
             transaction.addMark(

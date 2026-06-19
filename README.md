@@ -14,10 +14,13 @@ A full-stack, real-time collaborative rich-text editor built for a vibe coding a
 - Live word and character counts
 - Real-time Yjs collaboration over WebSocket
 - Live collaborator avatars, connection state, names, colors, and remote carets
+- Required display-name entry before joining a document
 - Shareable links that open the same collaborative document room
 - Anchored text comments with resolve status
 - Review workflow with persistent `in review` and `completed` highlights
-- Named revision snapshots with author/time metadata and one-click restore
+- Editable revision names with author/time metadata and one-click restore
+- Fixed workspace controls with an independently scrolling document canvas
+- Accessible hover tooltips for icon-only actions
 - SQLite persistence for documents, Yjs state, comments, reviews, and revisions
 - Responsive desktop and mobile layouts
 
@@ -91,8 +94,9 @@ Environment defaults are documented in `.env.example`.
 5. Confirm that text, title, remote caret, comments, and review highlights update
    in the other window.
 
-Each browser profile receives a persistent guest name and color. No external
-account or paid collaboration service is required.
+Each participant enters a display name before joining. The same normalized name
+maps to the same collaborator identity and color. No external account or paid
+collaboration service is required.
 
 ## Quality commands
 
