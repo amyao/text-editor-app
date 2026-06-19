@@ -7,10 +7,15 @@ import { Color } from '@tiptap/extension-color'
 import { TextStyle } from '@tiptap/extension-text-style'
 import { HocuspocusProvider } from '@hocuspocus/provider'
 import * as Y from 'yjs'
-import { DEFAULT_DOCUMENT_ID, type UserPresence } from '@text-editor/shared'
+import {
+  DEFAULT_DOCUMENT_ID,
+  type Comment,
+  type UserPresence,
+} from '@text-editor/shared'
 import {
   Bold,
   Check,
+  CheckCircle2,
   ChevronDown,
   Clock3,
   Cloud,
@@ -27,6 +32,12 @@ import {
   Users,
 } from 'lucide-react'
 import { FontSize } from './extensions/FontSize'
+import { CommentMark } from './extensions/CommentMark'
+import {
+  getComments,
+  postComment,
+  resolveComment as resolveCommentRequest,
+} from './api'
 
 const STORAGE_KEY = 'draftly-document'
 const USER_KEY = 'draftly-user'
@@ -104,6 +115,16 @@ function App() {
   const [documentTitle, setDocumentTitle] = useState('Remote work — first draft')
   const [, forceToolbarUpdate] = useState(0)
   const [connectionStatus, setConnectionStatus] = useState('connecting')
+  const [comments, setComments] = useState<Comment[]>([])
+  const [commentsLoading, setCommentsLoading] = useState(true)
+  const [commentError, setCommentError] = useState('')
+  const [commentDraft, setCommentDraft] = useState('')
+  const [commentSubmitting, setCommentSubmitting] = useState(false)
+  const [activeCommentId, setActiveCommentId] = useState<number | null>(null)
+  const [selectedText, setSelectedText] = useState('')
+  const [selectedRange, setSelectedRange] = useState<{ from: number; to: number } | null>(
+    null,
+  )
 
   const currentUser = useMemo(() => getCurrentUser(), [])
 
@@ -113,6 +134,7 @@ function App() {
       TextStyle,
       Color,
       FontSize,
+      CommentMark,
       Collaboration.configure({ document: collaborativeDocument }),
       CollaborationCaret.configure({
         provider: collaborationProvider,
@@ -124,12 +146,27 @@ function App() {
         class: 'editor-content',
         spellcheck: 'true',
       },
+      handleClick: (_view, _position, event) => {
+        const target = event.target as HTMLElement
+        const highlight = target.closest<HTMLElement>('[data-comment-id]')
+        if (!highlight) return false
+        setActiveCommentId(Number(highlight.dataset.commentId))
+        setRightPanel('comments')
+        return false
+      },
     },
     onUpdate: () => {
       setIsSaved(false)
       forceToolbarUpdate((value) => value + 1)
     },
-    onSelectionUpdate: () => forceToolbarUpdate((value) => value + 1),
+    onSelectionUpdate: ({ editor: currentEditor }) => {
+      forceToolbarUpdate((value) => value + 1)
+      const { from, to } = currentEditor.state.selection
+      if (from !== to) {
+        setSelectedRange({ from, to })
+        setSelectedText(currentEditor.state.doc.textBetween(from, to, ' '))
+      }
+    },
   })
 
   useEffect(() => {
@@ -185,6 +222,102 @@ function App() {
     }, 500)
     return () => window.clearTimeout(timer)
   }, [documentTitle])
+
+  const refreshComments = useCallback(async (showLoading = false) => {
+    if (showLoading) setCommentsLoading(true)
+    try {
+      const nextComments = await getComments()
+      setComments(nextComments)
+      nextComments
+        .filter((comment) => comment.resolved)
+        .forEach((comment) => editor?.commands.removeCommentMark(comment.id))
+      setCommentError('')
+    } catch {
+      setCommentError('Comments are temporarily unavailable.')
+    } finally {
+      setCommentsLoading(false)
+    }
+  }, [editor])
+
+  useEffect(() => {
+    void refreshComments(true)
+    const interval = window.setInterval(() => void refreshComments(), 4000)
+    return () => window.clearInterval(interval)
+  }, [refreshComments])
+
+  const addComment = async () => {
+    const body = commentDraft.trim()
+    if (!editor || !selectedRange || !selectedText.trim() || !body) return
+
+    setCommentSubmitting(true)
+    try {
+      const comment = await postComment({
+        authorId: currentUser.id,
+        authorName: currentUser.name,
+        body,
+        selectionFrom: selectedRange.from,
+        selectionTo: selectedRange.to,
+        quotedText: selectedText,
+      })
+      editor
+        .chain()
+        .focus()
+        .setTextSelection(selectedRange)
+        .setCommentMark(comment.id)
+        .run()
+      setComments((current) => [comment, ...current])
+      setActiveCommentId(comment.id)
+      setCommentDraft('')
+      setSelectedRange(null)
+      setSelectedText('')
+      setCommentError('')
+    } catch {
+      setCommentError('The comment could not be added. Please try again.')
+    } finally {
+      setCommentSubmitting(false)
+    }
+  }
+
+  const findCommentRange = (commentId: number) => {
+    if (!editor) return null
+    let from = Number.POSITIVE_INFINITY
+    let to = -1
+
+    editor.state.doc.descendants((node, position) => {
+      if (!node.isText) return
+      const hasComment = node.marks.some(
+        (mark) =>
+          mark.type.name === 'commentMark' &&
+          Number(mark.attrs.commentId) === commentId,
+      )
+      if (!hasComment) return
+      from = Math.min(from, position)
+      to = Math.max(to, position + node.nodeSize)
+    })
+
+    return Number.isFinite(from) && to >= from ? { from, to } : null
+  }
+
+  const focusComment = (commentId: number) => {
+    const range = findCommentRange(commentId)
+    setActiveCommentId(commentId)
+    if (range) {
+      editor?.chain().focus().setTextSelection(range).scrollIntoView().run()
+    }
+  }
+
+  const resolveComment = async (commentId: number) => {
+    try {
+      const resolved = await resolveCommentRequest(commentId)
+      editor?.commands.removeCommentMark(commentId)
+      setComments((current) =>
+        current.map((comment) => (comment.id === commentId ? resolved : comment)),
+      )
+      if (activeCommentId === commentId) setActiveCommentId(null)
+    } catch {
+      setCommentError('The comment could not be resolved. Please try again.')
+    }
+  }
 
   const clearDocument = () => {
     if (!editor) return
@@ -396,11 +529,118 @@ function App() {
             </div>
 
             {rightPanel === 'comments' ? (
-              <div className="empty-state">
-                <div className="empty-icon"><MessageSquareText size={22} /></div>
-                <h3>No comments yet</h3>
-                <p>Select text in the document to start a focused conversation.</p>
-                <button type="button" disabled>Add comment</button>
+              <div className="comments-panel">
+                {selectedRange && selectedText && (
+                  <div className="comment-composer">
+                    <div className="selection-preview">“{selectedText}”</div>
+                    <textarea
+                      aria-label="Comment text"
+                      placeholder="What would you like to say?"
+                      value={commentDraft}
+                      onChange={(event) => setCommentDraft(event.target.value)}
+                      onKeyDown={(event) => {
+                        if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+                          void addComment()
+                        }
+                      }}
+                    />
+                    <div className="composer-actions">
+                      <button
+                        className="cancel-button"
+                        type="button"
+                        onClick={() => {
+                          setSelectedRange(null)
+                          setSelectedText('')
+                          setCommentDraft('')
+                        }}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        className="primary-small-button"
+                        type="button"
+                        disabled={!commentDraft.trim() || commentSubmitting}
+                        onClick={() => void addComment()}
+                      >
+                        {commentSubmitting ? 'Adding…' : 'Add comment'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {!selectedRange && (
+                  <p className="comment-hint">
+                    Select text in the document to add a comment.
+                  </p>
+                )}
+
+                {commentError && <p className="panel-error">{commentError}</p>}
+
+                {commentsLoading ? (
+                  <p className="panel-loading">Loading comments…</p>
+                ) : comments.length === 0 ? (
+                  <div className="empty-state comments-empty">
+                    <div className="empty-icon"><MessageSquareText size={22} /></div>
+                    <h3>No comments yet</h3>
+                    <p>Comments will appear here alongside the selected text.</p>
+                  </div>
+                ) : (
+                  <div className="comment-list">
+                    {comments.map((comment) => (
+                      <article
+                        className={`comment-card ${
+                          activeCommentId === comment.id ? 'active' : ''
+                        } ${comment.resolved ? 'resolved' : ''}`}
+                        key={comment.id}
+                      >
+                        <button
+                          className="comment-card-main"
+                          type="button"
+                          onClick={() => focusComment(comment.id)}
+                        >
+                          <div
+                            className="comment-avatar"
+                            style={{
+                              backgroundColor:
+                                comment.authorId === currentUser.id
+                                  ? currentUser.color
+                                  : '#667a75',
+                            }}
+                          >
+                            {comment.authorName.slice(0, 2).toUpperCase()}
+                          </div>
+                          <div className="comment-content">
+                            <div className="comment-meta">
+                              <strong>{comment.authorName}</strong>
+                              <time>
+                                {new Date(`${comment.createdAt}Z`).toLocaleString([], {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })}
+                              </time>
+                            </div>
+                            <blockquote>“{comment.quotedText}”</blockquote>
+                            <p>{comment.body}</p>
+                          </div>
+                        </button>
+                        <div className="comment-card-actions">
+                          {comment.resolved ? (
+                            <span><CheckCircle2 size={13} /> Resolved</span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => void resolveComment(comment.id)}
+                            >
+                              <Check size={13} /> Resolve
+                            </button>
+                          )}
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                )}
               </div>
             ) : (
               <div className="history-list">

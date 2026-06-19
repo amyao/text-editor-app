@@ -83,7 +83,7 @@ npm run typecheck    # Type-check all workspaces
 - [x] Live word count
 - [x] Real-time collaborative document foundation
 - [x] Collaborative cursor foundation
-- [ ] Complete comments UI and anchored text marks
+- [x] Comments UI with collaborative anchored text marks
 - [ ] Complete review workflow and persistent highlights
 - [ ] Version history UI, snapshots, and restore
 - [ ] Authentication and shareable document links

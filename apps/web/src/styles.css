@@ -423,6 +423,14 @@ select:focus-visible {
   user-select: none;
 }
 
+.comment-highlight {
+  padding: 1px 0;
+  border-bottom: 2px solid #e2a940;
+  border-radius: 2px;
+  background: rgba(245, 204, 92, .32);
+  cursor: pointer;
+}
+
 .page-footer {
   display: flex;
   gap: 20px;
@@ -444,6 +452,7 @@ select:focus-visible {
   padding: 25px 20px;
   background: #fbfbf8;
   border-left: 1px solid var(--line);
+  overflow-y: auto;
 }
 
 .panel-heading {
@@ -511,6 +520,220 @@ select:focus-visible {
   background: #e7e9e3;
   color: #989b94;
   font-size: 12px;
+}
+
+.comments-panel {
+  margin-top: 20px;
+}
+
+.comment-hint,
+.panel-loading,
+.panel-error {
+  margin: 0 0 14px;
+  padding: 10px 11px;
+  border-radius: 8px;
+  color: #787c74;
+  background: #f2f3ee;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.panel-error {
+  color: #9d4b42;
+  background: #f8e9e6;
+}
+
+.comment-composer {
+  margin-bottom: 18px;
+  padding: 12px;
+  border: 1px solid #ced9cf;
+  border-radius: 11px;
+  background: #fff;
+  box-shadow: 0 8px 22px rgba(54, 67, 56, .07);
+}
+
+.selection-preview {
+  max-height: 58px;
+  margin-bottom: 10px;
+  padding: 7px 9px;
+  overflow: hidden;
+  border-left: 2px solid #d6a33f;
+  color: #73766f;
+  background: #faf6e9;
+  font-family: 'Newsreader', serif;
+  font-size: 12px;
+  font-style: italic;
+  line-height: 1.45;
+}
+
+.comment-composer textarea {
+  width: 100%;
+  min-height: 78px;
+  padding: 9px;
+  resize: vertical;
+  border: 1px solid #e1e3dd;
+  border-radius: 8px;
+  outline: 0;
+  color: var(--ink);
+  background: #fdfdfa;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.comment-composer textarea:focus {
+  border-color: #8daa98;
+  box-shadow: 0 0 0 2px rgba(93, 132, 109, .1);
+}
+
+.composer-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 7px;
+  margin-top: 9px;
+}
+
+.cancel-button,
+.primary-small-button {
+  height: 30px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 7px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.cancel-button {
+  background: transparent;
+  color: #777b73;
+}
+
+.primary-small-button {
+  color: #fff;
+  background: var(--green);
+}
+
+.primary-small-button:disabled {
+  opacity: .45;
+  cursor: default;
+}
+
+.comments-empty {
+  margin-top: 65px;
+}
+
+.comment-list {
+  display: grid;
+  gap: 10px;
+}
+
+.comment-card {
+  overflow: hidden;
+  border: 1px solid #e1e2dc;
+  border-radius: 10px;
+  background: #fff;
+  transition: border-color .15s, box-shadow .15s;
+}
+
+.comment-card.active {
+  border-color: #b8954c;
+  box-shadow: 0 0 0 2px rgba(209, 166, 76, .12);
+}
+
+.comment-card.resolved {
+  opacity: .64;
+}
+
+.comment-card-main {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 12px;
+  border: 0;
+  text-align: left;
+  background: transparent;
+  cursor: pointer;
+}
+
+.comment-avatar {
+  width: 27px;
+  height: 27px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 600;
+}
+
+.comment-content {
+  min-width: 0;
+  flex: 1;
+}
+
+.comment-meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.comment-meta strong {
+  overflow: hidden;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.comment-meta time {
+  flex: 0 0 auto;
+  color: #a0a39b;
+  font-size: 9px;
+}
+
+.comment-content blockquote {
+  margin: 8px 0;
+  padding: 5px 7px;
+  overflow: hidden;
+  color: #85877f;
+  background: #f5f3ea;
+  font-family: 'Newsreader', serif;
+  font-size: 11px;
+  font-style: italic;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.comment-content p {
+  margin: 0;
+  color: #4d504a;
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.comment-card-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 10px 9px;
+}
+
+.comment-card-actions button,
+.comment-card-actions span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  color: #6e776f;
+  background: transparent;
+  font-size: 10px;
+}
+
+.comment-card-actions button {
+  cursor: pointer;
 }
 
 .history-list {
