@@ -1,19 +1,47 @@
 # Text Editor App
 
-A full-stack collaborative rich-text editor built as a vibe coding assessment.
+A full-stack, real-time collaborative rich-text editor built for a vibe coding assessment.
 
-## Current foundation
+**Repository:** [github.com/amyao/text-editor-app](https://github.com/amyao/text-editor-app)
 
-- React 19 and TypeScript web application
-- TipTap rich-text editor
-- Yjs conflict-free collaborative document model
-- Hocuspocus WebSocket collaboration server
-- Live connection status and collaborative cursor support
-- Shareable document-room links and live collaborator avatars
-- SQLite persistence using Node's built-in SQLite module
-- REST API for documents, comments, reviews, and revisions
-- Local storage backup and live word/character count
-- npm workspaces monorepo
+![Editor overview](docs/screenshots/editor-overview.jpg)
+
+## Features
+
+- Rich-text editing with bold, italic, color, font size, headings, paragraphs, and lists
+- Clear document action with an in-app confirmation dialog
+- Browser-local backup with automatic saving and `Cmd/Ctrl + S`
+- Live word and character counts
+- Real-time Yjs collaboration over WebSocket
+- Live collaborator avatars, connection state, names, colors, and remote carets
+- Shareable links that open the same collaborative document room
+- Anchored text comments with resolve status
+- Review workflow with persistent `in review` and `completed` highlights
+- Named revision snapshots with author/time metadata and one-click restore
+- SQLite persistence for documents, Yjs state, comments, reviews, and revisions
+- Responsive desktop and mobile layouts
+
+![Version history](docs/screenshots/version-history.jpg)
+
+## Architecture
+
+```text
+Browser
+  ├── React + TipTap
+  ├── Yjs collaborative document
+  ├── localStorage safety backup
+  ├── REST API ──────────────────────┐
+  └── Hocuspocus WebSocket ───────┐  │
+                                 │  │
+Node.js server                   │  │
+  ├── Hocuspocus ◀───────────────┘  │
+  ├── Express ◀─────────────────────┘
+  └── SQLite
+```
+
+The Yjs document stores rich text, anchored marks, document title metadata, and
+collaborator awareness. REST endpoints manage durable comments, review states,
+and revision metadata.
 
 ## Monorepo structure
 
@@ -23,24 +51,11 @@ text-editor-app/
 │   ├── web/        React, TipTap, Yjs, Hocuspocus provider
 │   └── server/     Express API, Hocuspocus server, SQLite
 ├── packages/
-│   └── shared/     Shared types and constants
-├── data/           Local SQLite database (generated, ignored)
-└── package.json    Workspace scripts
-```
-
-## Architecture
-
-```text
-Browser
-  ├── React + TipTap
-  ├── localStorage backup
-  ├── REST API ───────────────┐
-  └── Yjs over WebSocket ──┐  │
-                           │  │
-Node.js server             │  │
-  ├── Hocuspocus ◀─────────┘  │
-  ├── Express ◀───────────────┘
-  └── SQLite
+│   └── shared/     Shared domain types and constants
+├── docs/
+│   └── screenshots/
+├── data/           Generated SQLite database (gitignored)
+└── package.json    npm workspace scripts
 ```
 
 ## Run locally
@@ -59,35 +74,55 @@ npm run dev
 
 Open [http://localhost:5173](http://localhost:5173).
 
-Development services:
+The single development command starts:
 
 - Web app: `http://localhost:5173`
 - REST API: `http://localhost:3001`
 - Collaboration WebSocket: `ws://localhost:1234`
 
-## Useful commands
+Environment defaults are documented in `.env.example`.
+
+## Test collaboration
+
+1. Start the app with `npm run dev`.
+2. Click **Share** to copy the document URL.
+3. Open that URL in another browser or private profile.
+4. Edit the document in either window.
+5. Confirm that text, title, remote caret, comments, and review highlights update
+   in the other window.
+
+Each browser profile receives a persistent guest name and color. No external
+account or paid collaboration service is required.
+
+## Quality commands
 
 ```bash
-npm run dev          # Start the complete stack
-npm run dev:web      # Start only the web app
-npm run dev:server   # Start only the API and collaboration server
-npm run build        # Build all workspaces
-npm test             # Run automated persistence tests
+npm test             # Run automated SQLite/domain persistence tests
+npm run build        # Production-build all workspaces
 npm run typecheck    # Type-check all workspaces
+npm run lint         # Lint the web application
 ```
 
-## Planned assessment features
+## Requirement coverage
 
-- [x] Text input and display
-- [x] Bold, italic, color, font size, lists, and paragraphs
-- [x] Clear document content
-- [x] Save a local backup
-- [x] Live word count
-- [x] Real-time collaborative document foundation
-- [x] Collaborative cursor foundation
-- [x] Comments UI with collaborative anchored text marks
-- [x] Review workflow with persistent collaborative highlights
-- [x] Version history UI, snapshots, and restore
-- [x] Shareable document links and persistent guest identities
-- [x] Automated persistence tests
-- [ ] README screenshots
+| Requirement | Implementation |
+| --- | --- |
+| Text input and display | TipTap/ProseMirror editor |
+| Basic formatting | Toolbar commands and custom font-size extension |
+| Clear text | Confirmed clear action |
+| Local storage | Debounced HTML safety backup |
+| Word count | Live words and characters |
+| Multiple users | Yjs + Hocuspocus WebSocket |
+| User cursor positions | Collaboration caret and awareness |
+| Version history | SQLite snapshots and restore UI |
+| Review functionality | Collaborative review marks with completion status |
+| Commenting | Anchored comment marks and discussion sidebar |
+
+## Verification status
+
+- Automated tests: 4 passing
+- Production build: passing
+- TypeScript: passing
+- ESLint: passing
+- Dependency audit: 0 known vulnerabilities
+- Browser acceptance: desktop and 375px mobile layouts verified

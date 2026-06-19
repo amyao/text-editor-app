@@ -58,6 +58,7 @@ import {
 const STORAGE_KEY = `draftly-document:${currentDocumentId}`
 const USER_KEY = 'draftly-user'
 const collaborativeDocument = new Y.Doc()
+const documentMetadata = collaborativeDocument.getMap<string>('metadata')
 const collaborationProvider = new HocuspocusProvider({
   url: collaborationUrl,
   name: currentDocumentId,
@@ -127,7 +128,9 @@ function App() {
   const [rightPanel, setRightPanel] = useState<'comments' | 'review' | 'history' | null>(
     'comments',
   )
-  const [documentTitle, setDocumentTitle] = useState('Remote work — first draft')
+  const [documentTitle, setDocumentTitle] = useState(
+    documentMetadata.get('title') ?? 'Remote work — first draft',
+  )
   const [, forceToolbarUpdate] = useState(0)
   const [connectionStatus, setConnectionStatus] = useState('connecting')
   const [comments, setComments] = useState<Comment[]>([])
@@ -151,6 +154,12 @@ function App() {
   const [activeReviewId, setActiveReviewId] = useState<number | null>(null)
   const [onlineUsers, setOnlineUsers] = useState<UserPresence[]>([])
   const [shareState, setShareState] = useState<'idle' | 'copied' | 'failed'>('idle')
+  const [confirmation, setConfirmation] = useState<{
+    title: string
+    description: string
+    confirmLabel: string
+    action: () => void
+  } | null>(null)
 
   const currentUser = useMemo(() => getCurrentUser(), [])
 
@@ -206,6 +215,9 @@ function App() {
   useEffect(() => {
     const handleSynced = () => {
       setConnectionStatus('connected')
+      if (!documentMetadata.get('title')) {
+        documentMetadata.set('title', documentTitle)
+      }
       if (editor?.isEmpty) {
         editor.commands.setContent(localStorage.getItem(STORAGE_KEY) ?? initialContent)
       }
@@ -220,7 +232,22 @@ function App() {
       collaborationProvider.off('synced', handleSynced)
       collaborationProvider.off('status', handleStatus)
     }
-  }, [editor])
+  }, [documentTitle, editor])
+
+  useEffect(() => {
+    const handleMetadataChange = () => {
+      const sharedTitle = documentMetadata.get('title')
+      if (sharedTitle) setDocumentTitle(sharedTitle)
+    }
+    documentMetadata.observe(handleMetadataChange)
+    handleMetadataChange()
+    return () => documentMetadata.unobserve(handleMetadataChange)
+  }, [])
+
+  const changeDocumentTitle = (title: string) => {
+    setDocumentTitle(title)
+    documentMetadata.set('title', title)
+  }
 
   useEffect(() => {
     const updateOnlineUsers = () => {
@@ -447,11 +474,17 @@ function App() {
 
   const restoreRevision = (revision: Revision) => {
     if (!editor) return
-    if (!window.confirm(`Restore “${revision.label}”? The current document will be replaced.`)) {
-      return
-    }
-    editor.commands.setContent(revision.contentHtml)
-    saveDocument()
+    setConfirmation({
+      title: 'Restore this version?',
+      description: `The current document will be replaced with “${revision.label}”.`,
+      confirmLabel: 'Restore version',
+      action: () => {
+        editor.commands.setContent(revision.contentHtml)
+        localStorage.setItem(STORAGE_KEY, revision.contentHtml)
+        setSavedAt(new Date())
+        setIsSaved(true)
+      },
+    })
   }
 
   const startReview = async () => {
@@ -521,10 +554,15 @@ function App() {
 
   const clearDocument = () => {
     if (!editor) return
-    if (window.confirm('Clear all content from this document?')) {
-      editor.commands.clearContent()
-      editor.commands.focus()
-    }
+    setConfirmation({
+      title: 'Clear the document?',
+      description: 'This removes all current content. Save a version first if you may need it later.',
+      confirmLabel: 'Clear document',
+      action: () => {
+        editor.commands.clearContent()
+        editor.commands.focus()
+      },
+    })
   }
 
   const wordCount = editor
@@ -544,7 +582,10 @@ function App() {
           <input
             aria-label="Document title"
             value={documentTitle}
-            onChange={(event) => setDocumentTitle(event.target.value)}
+            onChange={(event) => changeDocumentTitle(event.target.value)}
+            onBlur={() => {
+              if (!documentTitle.trim()) changeDocumentTitle('Untitled document')
+            }}
           />
           <div className={`save-state ${isSaved ? 'saved' : ''}`}>
             {isSaved ? <Check size={13} /> : <Cloud size={13} />}
@@ -1006,6 +1047,36 @@ function App() {
           </aside>
         )}
       </div>
+
+      {confirmation && (
+        <div className="modal-backdrop" role="presentation">
+          <section
+            className="confirmation-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="confirmation-title"
+          >
+            <div className="modal-icon"><Eraser size={20} /></div>
+            <h2 id="confirmation-title">{confirmation.title}</h2>
+            <p>{confirmation.description}</p>
+            <div className="modal-actions">
+              <button type="button" onClick={() => setConfirmation(null)}>
+                Cancel
+              </button>
+              <button
+                className="danger-button"
+                type="button"
+                onClick={() => {
+                  confirmation.action()
+                  setConfirmation(null)
+                }}
+              >
+                {confirmation.confirmLabel}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
     </main>
   )
 }
