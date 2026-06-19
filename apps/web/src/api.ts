@@ -1,5 +1,4 @@
 import {
-  DEFAULT_DOCUMENT_ID,
   type Comment,
   type CreateCommentInput,
   type CreateRevisionInput,
@@ -7,8 +6,7 @@ import {
   type Revision,
   type Review,
 } from '@text-editor/shared'
-
-const apiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:3001'
+import { apiUrl, currentDocumentId } from './config'
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`${apiUrl}${path}`, options)
@@ -20,11 +18,11 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 export function getComments(): Promise<Comment[]> {
-  return request(`/api/documents/${DEFAULT_DOCUMENT_ID}/comments`)
+  return request(`/api/documents/${currentDocumentId}/comments`)
 }
 
 export function postComment(input: CreateCommentInput): Promise<Comment> {
-  return request(`/api/documents/${DEFAULT_DOCUMENT_ID}/comments`, {
+  return request(`/api/documents/${currentDocumentId}/comments`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
@@ -38,11 +36,11 @@ export function resolveComment(commentId: number): Promise<Comment> {
 }
 
 export function getRevisions(): Promise<Revision[]> {
-  return request(`/api/documents/${DEFAULT_DOCUMENT_ID}/revisions`)
+  return request(`/api/documents/${currentDocumentId}/revisions`)
 }
 
 export function postRevision(input: CreateRevisionInput): Promise<Revision> {
-  return request(`/api/documents/${DEFAULT_DOCUMENT_ID}/revisions`, {
+  return request(`/api/documents/${currentDocumentId}/revisions`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
@@ -50,11 +48,11 @@ export function postRevision(input: CreateRevisionInput): Promise<Revision> {
 }
 
 export function getReviews(): Promise<Review[]> {
-  return request(`/api/documents/${DEFAULT_DOCUMENT_ID}/reviews`)
+  return request(`/api/documents/${currentDocumentId}/reviews`)
 }
 
 export function postReview(input: CreateReviewInput): Promise<Review> {
-  return request(`/api/documents/${DEFAULT_DOCUMENT_ID}/reviews`, {
+  return request(`/api/documents/${currentDocumentId}/reviews`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),

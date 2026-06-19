@@ -17,6 +17,18 @@ import {
 
 export function createApi() {
   const app = express()
+  const isValidSelection = (body: Record<string, unknown>) =>
+    Number.isInteger(body.selectionFrom) &&
+    Number.isInteger(body.selectionTo) &&
+    Number(body.selectionFrom) >= 0 &&
+    Number(body.selectionTo) > Number(body.selectionFrom) &&
+    typeof body.quotedText === 'string' &&
+    body.quotedText.trim().length > 0
+  const isValidAuthor = (body: Record<string, unknown>) =>
+    typeof body.authorId === 'string' &&
+    body.authorId.trim().length > 0 &&
+    typeof body.authorName === 'string' &&
+    body.authorName.trim().length > 0
 
   app.use(cors({ origin: process.env.WEB_ORIGIN ?? 'http://localhost:5173' }))
   app.use(express.json())
@@ -47,14 +59,16 @@ export function createApi() {
 
   app.post('/api/documents/:documentId/revisions', (request, response) => {
     const contentHtml = String(request.body.contentHtml ?? '')
-    if (!contentHtml) {
+    const label = String(request.body.label ?? '').trim()
+    const createdBy = String(request.body.createdBy ?? '').trim()
+    if (!contentHtml || !label || !createdBy) {
       response.status(400).json({ error: 'Revision content is required.' })
       return
     }
     const revision = createRevision(
       request.params.documentId,
-      String(request.body.label ?? 'Manual snapshot'),
-      String(request.body.createdBy ?? 'Anonymous'),
+      label,
+      createdBy,
       contentHtml,
     )
     response.status(201).json(revision)
@@ -65,6 +79,16 @@ export function createApi() {
   })
 
   app.post('/api/documents/:documentId/comments', (request, response) => {
+    const body = request.body as Record<string, unknown>
+    if (
+      !isValidAuthor(body) ||
+      !isValidSelection(body) ||
+      typeof body.body !== 'string' ||
+      body.body.trim().length === 0
+    ) {
+      response.status(400).json({ error: 'A valid comment and text selection are required.' })
+      return
+    }
     const comment = createComment(
       request.params.documentId,
       request.body as CreateCommentInput,
@@ -73,7 +97,12 @@ export function createApi() {
   })
 
   app.patch('/api/comments/:commentId/resolve', (request, response) => {
-    response.json(resolveComment(Number(request.params.commentId)))
+    const commentId = Number(request.params.commentId)
+    if (!Number.isInteger(commentId) || commentId < 1) {
+      response.status(400).json({ error: 'A valid comment id is required.' })
+      return
+    }
+    response.json(resolveComment(commentId))
   })
 
   app.get('/api/documents/:documentId/reviews', (request, response) => {
@@ -81,6 +110,11 @@ export function createApi() {
   })
 
   app.post('/api/documents/:documentId/reviews', (request, response) => {
+    const body = request.body as Record<string, unknown>
+    if (!isValidAuthor(body) || !isValidSelection(body)) {
+      response.status(400).json({ error: 'A valid author and text selection are required.' })
+      return
+    }
     const review = createReview(
       request.params.documentId,
       request.body as CreateReviewInput,
@@ -89,7 +123,16 @@ export function createApi() {
   })
 
   app.patch('/api/reviews/:reviewId/complete', (request, response) => {
-    response.json(completeReview(Number(request.params.reviewId)))
+    const reviewId = Number(request.params.reviewId)
+    if (!Number.isInteger(reviewId) || reviewId < 1) {
+      response.status(400).json({ error: 'A valid review id is required.' })
+      return
+    }
+    response.json(completeReview(reviewId))
+  })
+
+  app.use((_request, response) => {
+    response.status(404).json({ error: 'Route not found.' })
   })
 
   return app

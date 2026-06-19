@@ -9,6 +9,7 @@ A full-stack collaborative rich-text editor built as a vibe coding assessment.
 - Yjs conflict-free collaborative document model
 - Hocuspocus WebSocket collaboration server
 - Live connection status and collaborative cursor support
+- Shareable document-room links and live collaborator avatars
 - SQLite persistence using Node's built-in SQLite module
 - REST API for documents, comments, reviews, and revisions
 - Local storage backup and live word/character count
@@ -71,6 +72,7 @@ npm run dev          # Start the complete stack
 npm run dev:web      # Start only the web app
 npm run dev:server   # Start only the API and collaboration server
 npm run build        # Build all workspaces
+npm test             # Run automated persistence tests
 npm run typecheck    # Type-check all workspaces
 ```
 
@@ -86,6 +88,6 @@ npm run typecheck    # Type-check all workspaces
 - [x] Comments UI with collaborative anchored text marks
 - [x] Review workflow with persistent collaborative highlights
 - [x] Version history UI, snapshots, and restore
-- [ ] Authentication and shareable document links
-- [ ] Automated tests
+- [x] Shareable document links and persistent guest identities
+- [x] Automated persistence tests
 - [ ] README screenshots

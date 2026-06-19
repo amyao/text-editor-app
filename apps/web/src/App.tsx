@@ -8,7 +8,6 @@ import { TextStyle } from '@tiptap/extension-text-style'
 import { HocuspocusProvider } from '@hocuspocus/provider'
 import * as Y from 'yjs'
 import {
-  DEFAULT_DOCUMENT_ID,
   type Comment,
   type Revision,
   type Review,
@@ -40,6 +39,12 @@ import { FontSize } from './extensions/FontSize'
 import { CommentMark } from './extensions/CommentMark'
 import { ReviewMark } from './extensions/ReviewMark'
 import {
+  apiUrl,
+  collaborationUrl,
+  currentDocumentId,
+  getShareUrl,
+} from './config'
+import {
   completeReview as completeReviewRequest,
   getComments,
   getRevisions,
@@ -50,15 +55,12 @@ import {
   resolveComment as resolveCommentRequest,
 } from './api'
 
-const STORAGE_KEY = 'draftly-document'
+const STORAGE_KEY = `draftly-document:${currentDocumentId}`
 const USER_KEY = 'draftly-user'
-const collaborationUrl =
-  import.meta.env.VITE_COLLABORATION_URL ?? 'ws://localhost:1234'
-const apiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:3001'
 const collaborativeDocument = new Y.Doc()
 const collaborationProvider = new HocuspocusProvider({
   url: collaborationUrl,
-  name: DEFAULT_DOCUMENT_ID,
+  name: currentDocumentId,
   document: collaborativeDocument,
 })
 
@@ -147,6 +149,8 @@ function App() {
   const [reviewSubmitting, setReviewSubmitting] = useState(false)
   const [reviewError, setReviewError] = useState('')
   const [activeReviewId, setActiveReviewId] = useState<number | null>(null)
+  const [onlineUsers, setOnlineUsers] = useState<UserPresence[]>([])
+  const [shareState, setShareState] = useState<'idle' | 'copied' | 'failed'>('idle')
 
   const currentUser = useMemo(() => getCurrentUser(), [])
 
@@ -218,6 +222,25 @@ function App() {
     }
   }, [editor])
 
+  useEffect(() => {
+    const updateOnlineUsers = () => {
+      const users = Array.from(collaborationProvider.awareness?.getStates().values() ?? [])
+        .map((state) => state.user as UserPresence | undefined)
+        .filter((user): user is UserPresence => Boolean(user?.id && user?.name))
+      setOnlineUsers(
+        users.filter(
+          (user, index) => users.findIndex((candidate) => candidate.id === user.id) === index,
+        ),
+      )
+    }
+
+    collaborationProvider.on('awarenessChange', updateOnlineUsers)
+    updateOnlineUsers()
+    return () => {
+      collaborationProvider.off('awarenessChange', updateOnlineUsers)
+    }
+  }, [])
+
   const saveDocument = useCallback(() => {
     if (!editor) return
     localStorage.setItem(STORAGE_KEY, editor.getHTML())
@@ -244,7 +267,7 @@ function App() {
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      fetch(`${apiUrl}/api/documents/${DEFAULT_DOCUMENT_ID}`, {
+      fetch(`${apiUrl}/api/documents/${currentDocumentId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: documentTitle }),
@@ -252,6 +275,16 @@ function App() {
     }, 500)
     return () => window.clearTimeout(timer)
   }, [documentTitle])
+
+  const shareDocument = async () => {
+    try {
+      await navigator.clipboard.writeText(getShareUrl())
+      setShareState('copied')
+    } catch {
+      setShareState('failed')
+    }
+    window.setTimeout(() => setShareState('idle'), 2200)
+  }
 
   const refreshComments = useCallback(async (showLoading = false) => {
     if (showLoading) setCommentsLoading(true)
@@ -526,21 +559,31 @@ function App() {
         </div>
 
         <div className="topbar-actions">
-          <div className="avatars" aria-label="Current collaborator">
-            <div
-              className="avatar"
-              style={{ backgroundColor: currentUser.color }}
-              title={currentUser.name}
-            >
-              {currentUser.name.slice(0, 2).toUpperCase()}
-            </div>
+          <div className="avatars" aria-label={`${onlineUsers.length || 1} collaborators online`}>
+            {(onlineUsers.length ? onlineUsers : [currentUser]).slice(0, 4).map((user) => (
+              <div
+                className="avatar"
+                key={user.id}
+                style={{ backgroundColor: user.color }}
+                title={user.name}
+              >
+                {user.name.slice(0, 2).toUpperCase()}
+              </div>
+            ))}
           </div>
           <button className={`presence-button ${connectionStatus}`} type="button">
             <Users size={16} />
-            {connectionStatus === 'connected' ? 'Live' : 'Connecting…'}
+            {connectionStatus === 'connected'
+              ? `${onlineUsers.length || 1} online`
+              : 'Connecting…'}
           </button>
-          <button className="share-button" type="button">
-            <Share2 size={16} /> Share
+          <button className="share-button" type="button" onClick={() => void shareDocument()}>
+            {shareState === 'copied' ? <Check size={16} /> : <Share2 size={16} />}
+            {shareState === 'copied'
+              ? 'Link copied'
+              : shareState === 'failed'
+                ? 'Copy failed'
+                : 'Share'}
           </button>
           <IconButton label="More options"><MoreHorizontal size={19} /></IconButton>
         </div>
