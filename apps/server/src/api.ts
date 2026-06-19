@@ -46,10 +46,16 @@ export function createApi() {
   })
 
   app.post('/api/documents/:documentId/revisions', (request, response) => {
+    const contentHtml = String(request.body.contentHtml ?? '')
+    if (!contentHtml) {
+      response.status(400).json({ error: 'Revision content is required.' })
+      return
+    }
     const revision = createRevision(
       request.params.documentId,
       String(request.body.label ?? 'Manual snapshot'),
       String(request.body.createdBy ?? 'Anonymous'),
+      contentHtml,
     )
     response.status(201).json(revision)
   })

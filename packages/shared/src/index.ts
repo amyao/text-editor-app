@@ -22,6 +22,11 @@ export type Revision = {
   createdAt: string
 }
 
+export type CreateRevisionInput = Pick<
+  Revision,
+  'label' | 'contentHtml' | 'createdBy'
+>
+
 export type Comment = {
   id: number
   documentId: string

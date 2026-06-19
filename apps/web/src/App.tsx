@@ -10,6 +10,7 @@ import * as Y from 'yjs'
 import {
   DEFAULT_DOCUMENT_ID,
   type Comment,
+  type Revision,
   type UserPresence,
 } from '@text-editor/shared'
 import {
@@ -25,7 +26,9 @@ import {
   ListOrdered,
   MessageSquareText,
   MoreHorizontal,
+  Plus,
   Redo2,
+  RotateCcw,
   Share2,
   Sparkles,
   Undo2,
@@ -35,7 +38,9 @@ import { FontSize } from './extensions/FontSize'
 import { CommentMark } from './extensions/CommentMark'
 import {
   getComments,
+  getRevisions,
   postComment,
+  postRevision,
   resolveComment as resolveCommentRequest,
 } from './api'
 
@@ -125,6 +130,10 @@ function App() {
   const [selectedRange, setSelectedRange] = useState<{ from: number; to: number } | null>(
     null,
   )
+  const [revisions, setRevisions] = useState<Revision[]>([])
+  const [revisionsLoading, setRevisionsLoading] = useState(false)
+  const [revisionSaving, setRevisionSaving] = useState(false)
+  const [revisionError, setRevisionError] = useState('')
 
   const currentUser = useMemo(() => getCurrentUser(), [])
 
@@ -245,6 +254,22 @@ function App() {
     return () => window.clearInterval(interval)
   }, [refreshComments])
 
+  const refreshRevisions = useCallback(async () => {
+    setRevisionsLoading(true)
+    try {
+      setRevisions(await getRevisions())
+      setRevisionError('')
+    } catch {
+      setRevisionError('Version history is temporarily unavailable.')
+    } finally {
+      setRevisionsLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (rightPanel === 'history') void refreshRevisions()
+  }, [refreshRevisions, rightPanel])
+
   const addComment = async () => {
     const body = commentDraft.trim()
     if (!editor || !selectedRange || !selectedText.trim() || !body) return
@@ -317,6 +342,38 @@ function App() {
     } catch {
       setCommentError('The comment could not be resolved. Please try again.')
     }
+  }
+
+  const createSnapshot = async () => {
+    if (!editor) return
+    setRevisionSaving(true)
+    try {
+      const revision = await postRevision({
+        label: `Snapshot ${new Date().toLocaleString([], {
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        })}`,
+        contentHtml: editor.getHTML(),
+        createdBy: currentUser.name,
+      })
+      setRevisions((current) => [revision, ...current])
+      setRevisionError('')
+    } catch {
+      setRevisionError('The snapshot could not be saved. Please try again.')
+    } finally {
+      setRevisionSaving(false)
+    }
+  }
+
+  const restoreRevision = (revision: Revision) => {
+    if (!editor) return
+    if (!window.confirm(`Restore “${revision.label}”? The current document will be replaced.`)) {
+      return
+    }
+    editor.commands.setContent(revision.contentHtml)
+    saveDocument()
   }
 
   const clearDocument = () => {
@@ -643,20 +700,64 @@ function App() {
                 )}
               </div>
             ) : (
-              <div className="history-list">
-                <div className="history-item current">
-                  <div className="history-dot" />
-                  <div>
-                    <strong>Current version</strong>
-                    <span>Just now · You</span>
+              <div className="history-panel">
+                <button
+                  className="snapshot-button"
+                  type="button"
+                  disabled={revisionSaving}
+                  onClick={() => void createSnapshot()}
+                >
+                  <Plus size={15} />
+                  {revisionSaving ? 'Saving snapshot…' : 'Save current version'}
+                </button>
+
+                {revisionError && <p className="panel-error">{revisionError}</p>}
+
+                <div className="history-list">
+                  <div className="history-item current">
+                    <div className="history-dot" />
+                    <div>
+                      <strong>Current version</strong>
+                      <span>Live document · {currentUser.name}</span>
+                    </div>
                   </div>
-                </div>
-                <div className="history-item">
-                  <div className="history-dot" />
-                  <div>
-                    <strong>Initial draft</strong>
-                    <span>Saved locally</span>
-                  </div>
+
+                  {revisionsLoading ? (
+                    <p className="panel-loading">Loading version history…</p>
+                  ) : revisions.length === 0 ? (
+                    <div className="history-empty">
+                      <Clock3 size={20} />
+                      <p>No snapshots yet.</p>
+                      <span>Save a version before making a major change.</span>
+                    </div>
+                  ) : (
+                    revisions.map((revision) => (
+                      <div className="history-item revision-item" key={revision.id}>
+                        <div className="history-dot" />
+                        <div className="revision-details">
+                          <strong>{revision.label}</strong>
+                          <span>
+                            {new Date(`${revision.createdAt}Z`).toLocaleString([], {
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                            {' · '}
+                            {revision.createdBy}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          title={`Restore ${revision.label}`}
+                          aria-label={`Restore ${revision.label}`}
+                          onClick={() => restoreRevision(revision)}
+                        >
+                          <RotateCcw size={14} />
+                        </button>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
             )}

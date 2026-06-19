@@ -120,8 +120,18 @@ export function updateDocumentTitle(id: string, title: string) {
     .run(title, id)
 }
 
-export function createRevision(documentId: string, label: string, createdBy: string): Revision {
+export function createRevision(
+  documentId: string,
+  label: string,
+  createdBy: string,
+  contentHtml: string,
+): Revision {
   ensureDocument(documentId)
+  database
+    .prepare(
+      'UPDATE documents SET content_html = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+    )
+    .run(contentHtml, documentId)
   const document = database
     .prepare('SELECT ydoc, content_html FROM documents WHERE id = ?')
     .get(documentId) as Pick<DocumentRow, 'ydoc' | 'content_html'>
@@ -130,7 +140,7 @@ export function createRevision(documentId: string, label: string, createdBy: str
       `INSERT INTO revisions (document_id, label, ydoc, content_html, created_by)
        VALUES (?, ?, ?, ?, ?)`,
     )
-    .run(documentId, label, document.ydoc, document.content_html, createdBy)
+    .run(documentId, label, document.ydoc, contentHtml, createdBy)
   return getRevision(Number(result.lastInsertRowid))
 }
 

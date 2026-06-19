@@ -85,7 +85,7 @@ npm run typecheck    # Type-check all workspaces
 - [x] Collaborative cursor foundation
 - [x] Comments UI with collaborative anchored text marks
 - [ ] Complete review workflow and persistent highlights
-- [ ] Version history UI, snapshots, and restore
+- [x] Version history UI, snapshots, and restore
 - [ ] Authentication and shareable document links
 - [ ] Automated tests
 - [ ] README screenshots
