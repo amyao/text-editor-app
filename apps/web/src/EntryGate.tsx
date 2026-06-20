@@ -51,7 +51,7 @@ export default function EntryGate() {
             autoFocus
             autoComplete="name"
             maxLength={40}
-            placeholder="e.g. Amy Yao"
+            placeholder="e.g. Amy Ao"
             value={name}
             onChange={(event) => setName(event.target.value)}
           />
