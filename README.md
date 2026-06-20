@@ -4,7 +4,7 @@ A full-stack, real-time collaborative rich-text editor built for a vibe coding a
 
 **Repository:** [github.com/amyao/text-editor-app](https://github.com/amyao/text-editor-app)
 
-![Editor overview](docs/screenshots/editor-overview.jpg)
+![Editor overview](docs/screenshots/editor-overview.png)
 
 ## Features
 
@@ -14,6 +14,8 @@ A full-stack, real-time collaborative rich-text editor built for a vibe coding a
 - Live word and character counts
 - Real-time Yjs collaboration over WebSocket
 - Live collaborator avatars, connection state, names, colors, and remote carets
+- Stable pseudo-random collaborator colors generated across the full hue range to
+  minimize collisions
 - Required display-name entry before joining a document
 - Shareable links that open the same collaborative document room
 - Anchored text comments with resolve status
@@ -24,7 +26,70 @@ A full-stack, real-time collaborative rich-text editor built for a vibe coding a
 - SQLite persistence for documents, Yjs state, comments, reviews, and revisions
 - Responsive desktop and mobile layouts
 
-![Version history](docs/screenshots/version-history.jpg)
+## Feature tour
+
+### Display-name entry
+
+Every participant identifies themselves before joining. Normalized matching names
+represent the same collaborator.
+
+![Display-name entry](docs/screenshots/name-entry.png)
+
+### Rich-text editing
+
+The fixed toolbar provides paragraph styles, font size, bold, italic, text color,
+bulleted lists, numbered lists, undo, redo, and clear actions.
+
+![Rich-text editor and formatting toolbar](docs/screenshots/editor-overview.png)
+
+### Local autosave and live counts
+
+The document is backed up to browser storage after edits and supports
+`Cmd/Ctrl + S`. Word and character totals update live while the document scrolls
+independently beneath the fixed controls.
+
+![Local save status, fixed toolbar, word count, and character count](docs/screenshots/word-count-autosave.png)
+
+### Safe clear action
+
+Clearing the document requires explicit confirmation to prevent accidental data
+loss.
+
+![Clear document confirmation](docs/screenshots/clear-confirmation.png)
+
+### Real-time collaboration
+
+Distinct participant colors are shown consistently in avatars, selections, and
+remote carets. This example shows Amy and Ben connected to the same room.
+
+![Two collaborators with distinct colors and Ben's remote caret](docs/screenshots/collaboration.png)
+
+### Anchored comments
+
+Comments retain their quoted text, author, timestamp, document highlight, and
+resolved state.
+
+![Anchored comment and highlighted document text](docs/screenshots/comments.png)
+
+### Review workflow
+
+Selected text can be marked for review. Completed reviews remain visibly
+highlighted and available to every collaborator.
+
+![Completed review with persistent highlight](docs/screenshots/review-workflow.png)
+
+### Editable version history
+
+Users can save snapshots, rename them, inspect author/time metadata, and restore
+an earlier version.
+
+![Renamed revision in version history](docs/screenshots/version-history.png)
+
+### Discoverable toolbar actions
+
+Icon-only actions include hover and keyboard-focus tooltips.
+
+![Toolbar tooltip](docs/screenshots/tooltips.png)
 
 ## Architecture
 
@@ -95,8 +160,9 @@ Environment defaults are documented in `.env.example`.
    in the other window.
 
 Each participant enters a display name before joining. The same normalized name
-maps to the same collaborator identity and color. No external account or paid
-collaboration service is required.
+maps to the same collaborator identity and stable pseudo-random color. Different
+names are distributed across a broad hue range to reduce color collisions. No
+external account or paid collaboration service is required.
 
 ## Quality commands
 

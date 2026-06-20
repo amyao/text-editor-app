@@ -56,6 +56,7 @@ import {
   renameRevision as renameRevisionRequest,
   resolveComment as resolveCommentRequest,
 } from './api'
+import { getUserColor } from './userIdentity'
 
 const STORAGE_KEY = `draftly-document:${currentDocumentId}`
 
@@ -421,6 +422,7 @@ function App({
         .focus()
         .setTextSelection(selectedRange)
         .setCommentMark(comment.id)
+        .setTextSelection(selectedRange.to)
         .run()
       setComments((current) => [comment, ...current])
       setActiveCommentId(comment.id)
@@ -548,6 +550,7 @@ function App({
         .focus()
         .setTextSelection(selectedRange)
         .setReviewMark(review.id)
+        .setTextSelection(selectedRange.to)
         .run()
       setReviews((current) => [review, ...current])
       setActiveReviewId(review.id)
@@ -918,10 +921,7 @@ function App({
                           <div
                             className="comment-avatar"
                             style={{
-                              backgroundColor:
-                                comment.authorId === currentUser.id
-                                  ? currentUser.color
-                                  : '#667a75',
+                              backgroundColor: getUserColor(comment.authorName),
                             }}
                           >
                             {comment.authorName.slice(0, 2).toUpperCase()}

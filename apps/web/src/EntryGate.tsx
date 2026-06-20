@@ -2,21 +2,7 @@ import { useState } from 'react'
 import type { UserPresence } from '@text-editor/shared'
 import { ArrowRight, Sparkles } from 'lucide-react'
 import App from './App'
-
-const userPalette = ['#e07a5f', '#3d7a80', '#7a66a8', '#d49a46', '#557a54']
-
-function createUser(name: string): UserPresence {
-  const normalizedName = name.trim().replace(/\s+/g, ' ')
-  let hash = 0
-  for (const character of normalizedName.toLocaleLowerCase()) {
-    hash = (hash * 31 + character.charCodeAt(0)) >>> 0
-  }
-  return {
-    id: `user-${hash.toString(36)}`,
-    name: normalizedName,
-    color: userPalette[hash % userPalette.length],
-  }
-}
+import { createUser } from './userIdentity'
 
 export default function EntryGate() {
   const [currentUser, setCurrentUser] = useState<UserPresence | null>(null)
